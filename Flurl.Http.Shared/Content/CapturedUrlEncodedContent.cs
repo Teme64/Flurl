@@ -10,12 +10,12 @@ namespace Flurl.Http.Content
 	/// Provides HTTP content based on object serialized to URL-encoded name-value, with the with the captured to a property
 	/// so it can be read without affecting the read-once content stream.
 	/// </summary>
-	public class CapturedFormUrlEncodedContent : CapturedStringContent
+	public class CapturedUrlEncodedContent : CapturedStringContent
 	{
 		// This implementation was largely lifted from System.Net.Http.FormUrlEncodedContent, which unfortunately
 		// doesn't have the hooks needed for getting the content body as a string.
 
-		public CapturedFormUrlEncodedContent(object data) : base(GetContent(data)) {
+		public CapturedUrlEncodedContent(object data) : base(GetContent(data)) {
 			this.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
 		}
 
@@ -29,18 +29,11 @@ namespace Flurl.Http.Content
 					continue;
 				if (sb.Length > 0)
 					sb.Append('&');
-				sb.Append(Encode(kv.Key));
+				sb.Append(Url.EncodeQueryParamValue(kv.Key, true));
 				sb.Append('=');
-				sb.Append(Encode(kv.Value.ToString()));
+				sb.Append(Url.EncodeQueryParamValue(kv.Value, true));
 			}
 			return sb.ToString();
-		}
-
-		private static string Encode(string data) {
-			if (string.IsNullOrEmpty(data))
-				return string.Empty;
-			else
-				return Uri.EscapeDataString(data).Replace("%20", "+");
 		}
 	}
 }

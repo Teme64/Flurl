@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using NUnit.Framework;
 
 namespace Flurl.Test
@@ -26,15 +28,6 @@ namespace Flurl.Test
 		}
 
 		[Test]
-		public void Should_Accept_QueryString_Without_ValuePair()
-		{
-			var url = new Url("http://example.com?123456");
-			Assert.AreEqual("http://example.com", url.Path);
-			Assert.AreEqual(1, url.QueryParams.Keys.Count);
-			Assert.AreEqual(string.Empty, url.QueryParams["123456"]);
-		}
-
-		[Test]
 		public void Path_returns_everything_but_querystring() {
 			var path = new Url("http://www.mysite.com/more?x=1&y=2").Path;
 			Assert.AreEqual("http://www.mysite.com/more", path);
@@ -42,9 +35,10 @@ namespace Flurl.Test
 
 		[Test]
 		public void QueryParams_returns_query_params() {
-			var q = new Url("http://www.mysite.com/more?x=1&y=2").QueryParams;
-			CollectionAssert.AreEqual(new[] { "x", "y" }, q.Keys);
-			CollectionAssert.AreEqual(new[] { "1", "2" }, q.Values);
+			// y has 2 values, which should be grouped into an array
+			var q = new Url("http://www.mysite.com/more?x=1&y=2&z=3&y=4").QueryParams;
+			CollectionAssert.AreEqual(new[] { "x", "y", "z" }, q.Keys);
+			CollectionAssert.AreEqual(new object[] { "1", new[] { "2", "4" }, "3" }, q.Values);
 		}
 
 		[Test, ExpectedException(typeof(ArgumentNullException))]
@@ -55,7 +49,7 @@ namespace Flurl.Test
 		[Test]
 		public void Combine_works() {
 			var url = Url.Combine("http://www.foo.com/", "/too/", "/many/", "/slashes/", "too", "few", "one/two/");
-			Assert.AreEqual("http://www.foo.com/too/many/slashes/too/few/one/two", url);
+			Assert.AreEqual("http://www.foo.com/too/many/slashes/too/few/one/two/", url);
 		}
 
 		[Test]
@@ -83,7 +77,7 @@ namespace Flurl.Test
 		[Test]
 		public void can_append_multiple_path_segments_by_multi_args() {
 			var url = "http://www.mysite.com".AppendPathSegments("category", "/endpoint/");
-			Assert.AreEqual("http://www.mysite.com/category/endpoint", url.ToString());
+			Assert.AreEqual("http://www.mysite.com/category/endpoint/", url.ToString());
 		}
 
 		[Test]
@@ -97,6 +91,14 @@ namespace Flurl.Test
 		public void can_add_query_param() {
 			var url = "http://www.mysite.com".SetQueryParam("x", 1);
 			Assert.AreEqual("http://www.mysite.com?x=1", url.ToString());
+		}
+
+		[Test]
+		public void can_add_query_param_without_value() {
+			var url = new Url("http://example.com?123456");
+			Assert.AreEqual("http://example.com", url.Path);
+			Assert.AreEqual(1, url.QueryParams.Keys.Count);
+			Assert.AreEqual(string.Empty, url.QueryParams["123456"]);
 		}
 
 		[Test]
@@ -170,6 +172,13 @@ namespace Flurl.Test
 		}
 
 		[Test]
+		public void url_ToString_uses_invariant_culture() {
+			Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("es-ES");
+			var url = "http://www.mysite.com".SetQueryParam("x", 1.1);
+			Assert.AreEqual("http://www.mysite.com?x=1.1", url.ToString());
+		}
+
+		[Test]
 		public void can_reset_to_root() {
 			var url = "http://www.mysite.com/one".AppendPathSegments("two", "three").SetQueryParams(new { x = 1, y = 2 });
 			url.ResetToRoot();
@@ -213,6 +222,26 @@ namespace Flurl.Test
 			var url = new Url("http://www.mysite.com/more?x=1&y=2");
 			var someMethodThatTakesAString = new Action<string>(s => { });
 			someMethodThatTakesAString(url); // if this compiles, test passed.
+		}
+
+		[Test]
+		public void interprets_plus_as_space() {
+			var url = new Url("http://www.mysite.com/foo+bar?x=1+2");
+			Assert.AreEqual("1 2", url.QueryParams["x"]);
+			// encode + in query string but not path segment
+			Assert.AreEqual("http://www.mysite.com/foo+bar?x=1%202", url.ToString());
+		}
+
+		[Test]
+		public void can_encode_space_as_plus() {
+			var url = new Url("http://www.mysite.com/foo+bar?x=1+2");
+			Assert.AreEqual("http://www.mysite.com/foo+bar?x=1+2", url.ToString(true));
+		}
+
+		[Test]
+		public void encodes_plus() {
+			var url = new Url("http://www.mysite.com").SetQueryParam("x", "1+2");
+			Assert.AreEqual("http://www.mysite.com?x=1%2B2", url.ToString());
 		}
 
 		[Test]
